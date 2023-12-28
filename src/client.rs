@@ -2,7 +2,7 @@ use headers::Authorization;
 use hyper::body::Buf;
 use hyper::client::{Client, HttpConnector};
 use hyper::{Body, Method, Request, StatusCode, Uri};
-use hyper_proxy::{Proxy, Intercept, ProxyConnector};
+use hyper_proxy::{Intercept, Proxy, ProxyConnector};
 use hyper_tls::HttpsConnector;
 
 use std::str::FromStr;
@@ -19,10 +19,10 @@ pub struct WebhookClient {
 
 impl WebhookClient {
     // proxy format: host:port:username:password
-    pub fn new(url: &str, proxy: Option<&str>) -> Self {
+    pub fn new(url: &str, proxy: Option<String>) -> Self {
         let mut p = None;
         if let Some(proxy) = proxy {
-            if let Some(proxy) = build_proxy(proxy) {
+            if let Some(proxy) = build_proxy(proxy.as_str()) {
                 p = Some(proxy);
             }
         };
