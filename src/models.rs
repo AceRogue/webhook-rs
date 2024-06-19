@@ -22,12 +22,13 @@ impl<T: Ord> Interval<T> {
 }
 
 macro_rules! interval_member {
-($name:ident, $option_inner_t:ty, $lower_bound:expr, $upper_bound:expr) => {
-        pub(crate) const $name : Interval<$option_inner_t> = Interval::from_min_max($lower_bound, $upper_bound);
+    ($name:ident, $option_inner_t:ty, $lower_bound:expr, $upper_bound:expr) => {
+        pub(crate) const $name: Interval<$option_inner_t> =
+            Interval::from_min_max($lower_bound, $upper_bound);
     };
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Webhook {
     pub id: Snowflake,
     #[serde(rename = "type")]
@@ -79,7 +80,8 @@ impl MessageContext {
         interval_check(
             &Message::CUSTOM_ID_LEN_INTERVAL,
             &id.len(),
-            "Custom ID length")?;
+            "Custom ID length",
+        )?;
 
         if !self.custom_ids.insert(id.to_string()) {
             return Err(format!("Attempt to use the same custom ID ({}) twice!", id));
@@ -93,7 +95,6 @@ impl MessageContext {
     ///
     /// None on no error. Some(String) containing the reason for failure.
     pub fn register_embed(&mut self, embed: &Embed) -> Result<(), String> {
-
         self.embeds_character_counter += embed.title.as_ref().map_or(0, |s| s.len());
         self.embeds_character_counter += embed.description.as_ref().map_or(0, |s| s.len());
         self.embeds_character_counter += embed.footer.as_ref().map_or(0, |f| f.text.len());
@@ -106,7 +107,8 @@ impl MessageContext {
         interval_check(
             &Message::EMBED_TOTAL_TEXT_LEN_INTERVAL,
             &self.embeds_character_counter,
-            "Character count across all embeds")?;
+            "Character count across all embeds",
+        )?;
         Ok(())
     }
 
@@ -114,7 +116,7 @@ impl MessageContext {
         MessageContext {
             custom_ids: HashSet::new(),
             button_count_in_action_row: 0,
-            embeds_character_counter: 0
+            embeds_character_counter: 0,
         }
     }
 
@@ -134,7 +136,8 @@ impl MessageContext {
         interval_check(
             &ActionRow::BUTTON_COUNT_INTERVAL,
             &self.button_count_in_action_row,
-            "Button count")?;
+            "Button count",
+        )?;
         Ok(())
     }
     /// Switches the context to register components logically in a "new" action row.
@@ -235,7 +238,7 @@ impl Message {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct Embed {
     pub title: Option<String>,
     #[serde(rename = "type")]
@@ -335,7 +338,10 @@ impl Embed {
 
     pub fn field(&mut self, name: &str, value: &str, inline: bool) -> &mut Self {
         if self.fields.len() == Embed::FIELDS_LEN_INTERVAL.max_allowed {
-            panic!("You can't have more than {} fields in an embed!", Embed::FIELDS_LEN_INTERVAL.max_allowed)
+            panic!(
+                "You can't have more than {} fields in an embed!",
+                Embed::FIELDS_LEN_INTERVAL.max_allowed
+            )
         }
 
         self.fields.push(EmbedField::new(name, value, inline));
@@ -348,7 +354,7 @@ impl Embed {
     interval_member!(FIELDS_LEN_INTERVAL, usize, 0, 25);
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct EmbedField {
     pub name: String,
     pub value: String,
@@ -367,7 +373,7 @@ impl EmbedField {
     interval_member!(VALUE_LEN_INTERVAL, usize, 0, 1024);
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct EmbedFooter {
     pub text: String,
     pub icon_url: Option<String>,
@@ -387,7 +393,7 @@ pub type EmbedImage = EmbedUrlSource;
 pub type EmbedThumbnail = EmbedUrlSource;
 pub type EmbedVideo = EmbedUrlSource;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct EmbedUrlSource {
     pub url: String,
 }
@@ -400,7 +406,7 @@ impl EmbedUrlSource {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct EmbedProvider {
     pub name: String,
     pub url: String,
@@ -415,7 +421,7 @@ impl EmbedProvider {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct EmbedAuthor {
     pub name: String,
     pub url: Option<String>,
@@ -828,7 +834,8 @@ impl DiscordApiCompatible for Message {
         interval_check(
             &Message::ACTION_ROW_COUNT_INTERVAL,
             &self.action_rows.len(),
-            "Action row count")?;
+            "Action row count",
+        )?;
 
         self.embeds
             .iter()
@@ -843,18 +850,34 @@ impl DiscordApiCompatible for Message {
 impl DiscordApiCompatible for Embed {
     fn check_compatibility(&self, context: &mut MessageContext) -> Result<(), String> {
         context.register_embed(self)?;
-        interval_check(&Self::FIELDS_LEN_INTERVAL, &self.fields.len(), "Embed field count")?;
+        interval_check(
+            &Self::FIELDS_LEN_INTERVAL,
+            &self.fields.len(),
+            "Embed field count",
+        )?;
 
         if let Some(title) = self.title.as_ref() {
-            interval_check(&Self::TITLE_LEN_INTERVAL, &title.len(), "Embed title length")?;
+            interval_check(
+                &Self::TITLE_LEN_INTERVAL,
+                &title.len(),
+                "Embed title length",
+            )?;
         }
 
         if let Some(description) = self.description.as_ref() {
-            interval_check(&Self::DESCRIPTION_LEN_INTERVAL, &description.len(), "Embed description length")?;
+            interval_check(
+                &Self::DESCRIPTION_LEN_INTERVAL,
+                &description.len(),
+                "Embed description length",
+            )?;
         }
 
-        self.author.as_ref().map_or_else(|| Ok(()), |a| a.check_compatibility(context))?;
-        self.footer.as_ref().map_or_else(|| Ok(()), |f| f.check_compatibility(context))?;
+        self.author
+            .as_ref()
+            .map_or_else(|| Ok(()), |a| a.check_compatibility(context))?;
+        self.footer
+            .as_ref()
+            .map_or_else(|| Ok(()), |f| f.check_compatibility(context))?;
 
         for field in self.fields.iter() {
             field.check_compatibility(context)?;
@@ -865,22 +888,38 @@ impl DiscordApiCompatible for Embed {
 
 impl DiscordApiCompatible for EmbedAuthor {
     fn check_compatibility(&self, _context: &mut MessageContext) -> Result<(), String> {
-        interval_check(&Self::NAME_LEN_INTERVAL, &self.name.len(), "Embed author name length")?;
+        interval_check(
+            &Self::NAME_LEN_INTERVAL,
+            &self.name.len(),
+            "Embed author name length",
+        )?;
         Ok(())
     }
 }
 
 impl DiscordApiCompatible for EmbedFooter {
     fn check_compatibility(&self, _context: &mut MessageContext) -> Result<(), String> {
-        interval_check(&Self::TEXT_LEN_INTERVAL, &self.text.len(), "Embed footer text length")?;
+        interval_check(
+            &Self::TEXT_LEN_INTERVAL,
+            &self.text.len(),
+            "Embed footer text length",
+        )?;
         Ok(())
     }
 }
 
 impl DiscordApiCompatible for EmbedField {
     fn check_compatibility(&self, _context: &mut MessageContext) -> Result<(), String> {
-        interval_check(&Self::VALUE_LEN_INTERVAL, &self.value.len(), "Embed field value length")?;
-        interval_check(&Self::NAME_LEN_INTERVAL, &self.name.len(), "Embed field name length")?;
+        interval_check(
+            &Self::VALUE_LEN_INTERVAL,
+            &self.value.len(),
+            "Embed field value length",
+        )?;
+        interval_check(
+            &Self::NAME_LEN_INTERVAL,
+            &self.name.len(),
+            "Embed field name length",
+        )?;
         Ok(())
     }
 }
