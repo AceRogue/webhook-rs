@@ -151,7 +151,7 @@ impl MessageContext {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct Message {
     pub content: Option<String>,
     pub username: Option<String>,
@@ -165,15 +165,7 @@ pub struct Message {
 
 impl Message {
     pub fn new() -> Self {
-        Self {
-            content: None,
-            username: None,
-            avatar_url: None,
-            tts: false,
-            embeds: vec![],
-            allow_mentions: None,
-            action_rows: vec![],
-        }
+        Self::default()
     }
 
     pub fn content(&mut self, content: &str) -> &mut Self {
@@ -238,7 +230,7 @@ impl Message {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct Embed {
     pub title: Option<String>,
     #[serde(rename = "type")]
@@ -259,21 +251,7 @@ pub struct Embed {
 
 impl Embed {
     pub fn new() -> Self {
-        Self {
-            title: None,
-            embed_type: String::from("rich"),
-            description: None,
-            url: None,
-            timestamp: None,
-            color: None,
-            footer: None,
-            image: None,
-            video: None,
-            thumbnail: None,
-            provider: None,
-            author: None,
-            fields: vec![],
-        }
+        Self::default()
     }
 
     pub fn title(&mut self, title: &str) -> &mut Self {
@@ -453,7 +431,7 @@ fn resolve_allowed_mention_name(allowed_mention: AllowedMention) -> String {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct AllowedMentions {
     pub parse: Option<Vec<String>>,
     pub roles: Option<Vec<Snowflake>>,
@@ -469,9 +447,8 @@ impl AllowedMentions {
         replied_user: bool,
     ) -> Self {
         let mut parse_strings: Vec<String> = vec![];
-        if parse.is_some() {
+        if let Some(parse) = parse {
             parse
-                .unwrap()
                 .into_iter()
                 .for_each(|x| parse_strings.push(resolve_allowed_mention_name(x)))
         }
@@ -487,7 +464,7 @@ impl AllowedMentions {
 
 // ready to be extended with other components
 // non-composite here specifically means *not an action row*
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum NonCompositeComponent {
     Button(Button),
 }
@@ -503,7 +480,7 @@ impl Serialize for NonCompositeComponent {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ActionRow {
     #[serde(rename = "type")]
     pub component_type: u8,
@@ -566,7 +543,7 @@ impl NonLinkButtonStyle {
 // since link button has an explicit way of creation via the action row
 // this enum is kept hidden from the user ans the NonLinkButtonStyle is created to avoid
 // user confusion
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ButtonStyles {
     Primary,
     Secondary,
@@ -599,7 +576,7 @@ pub struct PartialEmoji {
 }
 
 /// the button struct intended for serialized
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 struct Button {
     #[serde(rename = "type")]
     pub component_type: i8,
@@ -823,9 +800,9 @@ impl DiscordApiCompatible for ActionRow {
             return Err("Empty action row detected!".to_string());
         }
 
-        self.components.iter().fold(Ok(()), |acc, component| {
-            acc.and(component.check_compatibility(context))
-        })
+        self.components
+            .iter()
+            .try_fold((), |_, component| component.check_compatibility(context))
     }
 }
 
@@ -839,11 +816,11 @@ impl DiscordApiCompatible for Message {
 
         self.embeds
             .iter()
-            .fold(Ok(()), |acc, emb| acc.and(emb.check_compatibility(context)))?;
+            .try_fold((), |_, emb| emb.check_compatibility(context))?;
 
         self.action_rows
             .iter()
-            .fold(Ok(()), |acc, row| acc.and(row.check_compatibility(context)))
+            .try_fold((), |_, row| row.check_compatibility(context))
     }
 }
 
