@@ -296,6 +296,11 @@ impl Embed {
         self
     }
 
+    pub fn image_with_size(&mut self, url: &str, width: u32, height: u32) -> &mut Self {
+        self.image = Some(EmbedImage::new_with_size(url, width, height));
+        self
+    }
+
     pub fn video(&mut self, url: &str) -> &mut Self {
         self.video = Some(EmbedVideo::new(url));
         self
@@ -374,7 +379,31 @@ impl EmbedFooter {
     interval_member!(TEXT_LEN_INTERVAL, usize, 0, 2048);
 }
 
-pub type EmbedImage = EmbedUrlSource;
+#[derive(Serialize, Debug, Clone)]
+pub struct EmbedImage {
+    pub url: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
+impl EmbedImage {
+    pub fn new(url: &str) -> Self {
+        Self {
+            url: url.to_owned(),
+            width: None,
+            height: None,
+        }
+    }
+
+    pub fn new_with_size(url: &str, width: u32, height: u32) -> Self {
+        Self {
+            url: url.to_owned(),
+            width: Some(width),
+            height: Some(height),
+        }
+    }
+}
+
 pub type EmbedThumbnail = EmbedUrlSource;
 pub type EmbedVideo = EmbedUrlSource;
 
