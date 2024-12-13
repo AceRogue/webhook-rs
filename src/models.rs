@@ -161,6 +161,7 @@ pub struct Message {
     pub allow_mentions: Option<AllowedMentions>,
     #[serde(rename = "components")]
     pub action_rows: Vec<ActionRow>,
+    pub attachments: Vec<Attachment>,
 }
 
 impl Message {
@@ -226,6 +227,12 @@ impl Message {
         replied_user: bool,
     ) -> &mut Self {
         self.allow_mentions = Some(AllowedMentions::new(parse, roles, users, replied_user));
+        self
+    }
+
+    pub fn attachment(&mut self, filename: impl Into<String>, data: Vec<u8>) -> &mut Self {
+        self.attachments
+            .push(Attachment::new(filename.into(), data));
         self
     }
 }
@@ -898,5 +905,26 @@ impl DiscordApiCompatible for EmbedField {
             "Embed field name length",
         )?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Attachment {
+    pub filename: String,
+    #[serde(skip)]
+    pub data: Vec<u8>,
+    // Discord API 需要的字段
+    pub id: String,
+    pub description: Option<String>,
+}
+
+impl Attachment {
+    pub fn new(filename: String, data: Vec<u8>) -> Self {
+        Self {
+            filename,
+            data,
+            id: "0".to_string(), // Discord API 要求的ID
+            description: None,
+        }
     }
 }

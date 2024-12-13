@@ -1,4 +1,3 @@
-use headers::Authorization;
 use hyper::body::Buf;
 use hyper::client::{Client, HttpConnector};
 use hyper::{Body, Method, Request, StatusCode, Uri};
@@ -70,31 +69,83 @@ impl WebhookClient {
     }
 
     pub async fn send_message(&self, message: &Message) -> WebhookResult<bool> {
-        let body = serde_json::to_string(message)?;
-        let request = Request::builder()
-            .method(Method::POST)
-            .uri(&self.url)
-            .header("content-type", "application/json")
-            .body(Body::from(body))?;
-        let response = self.client.request(request).await?;
+        use hyper::header::CONTENT_TYPE;
+        use rand::distributions::{Alphanumeric, DistString};
 
-        // https://discord.com/developers/docs/resources/webhook#execute-webhook
-        // execute webhook returns either NO_CONTENT or a message
-        if response.status() == StatusCode::NO_CONTENT {
-            Ok(true)
+        // 如果有附件,使用 multipart/form-data
+        if !message.attachments.is_empty() {
+            let boundary = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+            let mut body = Vec::new();
+
+            // 添加消息JSON部分
+            let payload = serde_json::to_string(message)?;
+            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n{payload}\r\n").as_bytes());
+
+            // 添加每个附件
+            for (i, attachment) in message.attachments.iter().enumerate() {
+                body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"files[{i}]\"; filename=\"{}\"\r\nContent-Type: application/octet-stream\r\n\r\n", 
+                    attachment.filename).as_bytes());
+                body.extend_from_slice(&attachment.data);
+                body.extend_from_slice(b"\r\n");
+            }
+
+            body.extend_from_slice(format!("--{boundary}--").as_bytes());
+
+            let request = Request::builder()
+                .method(Method::POST)
+                .uri(&self.url)
+                .header(
+                    CONTENT_TYPE,
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))?;
+
+            let response = self.client.request(request).await?;
+
+            if response.status() == StatusCode::NO_CONTENT || response.status() == StatusCode::OK {
+                Ok(true)
+            } else {
+                let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
+                let err_msg = match String::from_utf8(body_bytes.to_vec()) {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        "Error reading Discord API error message:".to_string() + &err.to_string()
+                    }
+                };
+                Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    err_msg,
+                )))
+            }
         } else {
-            let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
-            let err_msg = match String::from_utf8(body_bytes.to_vec()) {
-                Ok(msg) => msg,
-                Err(err) => {
-                    "Error reading Discord API error message:".to_string() + &err.to_string()
-                }
-            };
+            // 原有的JSON请求逻辑保持不变
+            let body = serde_json::to_string(message)?;
+            let request = Request::builder()
+                .method(Method::POST)
+                .uri(&self.url)
+                .header("content-type", "application/json")
+                .body(Body::from(body))?;
 
-            Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                err_msg,
-            )))
+            let response = self.client.request(request).await?;
+
+            // https://discord.com/developers/docs/resources/webhook#execute-webhook
+            // execute webhook returns either NO_CONTENT or a message
+            if response.status() == StatusCode::NO_CONTENT || response.status() == StatusCode::OK {
+                Ok(true)
+            } else {
+                let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
+                let err_msg = match String::from_utf8(body_bytes.to_vec()) {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        "Error reading Discord API error message:".to_string() + &err.to_string()
+                    }
+                };
+
+                Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    err_msg,
+                )))
+            }
         }
     }
 
@@ -114,7 +165,7 @@ fn build_proxy(proxy: &str) -> Option<Proxy> {
         if let Ok(uri) = uri.parse::<Uri>() {
             let mut proxy = Proxy::new(Intercept::All, uri);
             if splited.len() == 4 {
-                proxy.set_authorization(Authorization::basic(splited[2], splited[3]));
+                proxy.set_authorization(headers::Authorization::basic(splited[2], splited[3]));
             }
             Some(proxy)
         } else {
@@ -127,9 +178,11 @@ fn build_proxy(proxy: &str) -> Option<Proxy> {
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        ActionRow, DiscordApiCompatible, Embed, EmbedAuthor, EmbedField, EmbedFooter, Message,
-        MessageContext, NonLinkButtonStyle,
+        ActionRow, Attachment, DiscordApiCompatible, Embed, EmbedAuthor, EmbedField, EmbedFooter,
+        Message, MessageContext, NonLinkButtonStyle,
     };
+
+    use super::WebhookClient;
 
     fn assert_message_error<BuildFunc, MessagePred>(message_build: BuildFunc, msg_pred: MessagePred)
     where
@@ -485,4 +538,5 @@ mod tests {
         // this should not compile if Message is not Send
         test_is_send(message);
     }
+
 }
