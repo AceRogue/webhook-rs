@@ -151,7 +151,7 @@ impl MessageContext {
     }
 }
 
-#[derive(Serialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Message {
     pub content: Option<String>,
     pub username: Option<String>,
@@ -237,7 +237,7 @@ impl Message {
     }
 }
 
-#[derive(Serialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Embed {
     pub title: Option<String>,
     #[serde(rename = "type")]
@@ -344,7 +344,7 @@ impl Embed {
     interval_member!(FIELDS_LEN_INTERVAL, usize, 0, 25);
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedField {
     pub name: String,
     pub value: String,
@@ -363,7 +363,7 @@ impl EmbedField {
     interval_member!(VALUE_LEN_INTERVAL, usize, 0, 1024);
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedFooter {
     pub text: String,
     pub icon_url: Option<String>,
@@ -379,7 +379,7 @@ impl EmbedFooter {
     interval_member!(TEXT_LEN_INTERVAL, usize, 0, 2048);
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedImage {
     pub url: String,
     pub width: Option<u32>,
@@ -407,7 +407,7 @@ impl EmbedImage {
 pub type EmbedThumbnail = EmbedUrlSource;
 pub type EmbedVideo = EmbedUrlSource;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedUrlSource {
     pub url: String,
 }
@@ -420,7 +420,7 @@ impl EmbedUrlSource {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedProvider {
     pub name: String,
     pub url: String,
@@ -435,7 +435,7 @@ impl EmbedProvider {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmbedAuthor {
     pub name: String,
     pub url: Option<String>,
@@ -467,7 +467,7 @@ fn resolve_allowed_mention_name(allowed_mention: AllowedMention) -> String {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllowedMentions {
     pub parse: Option<Vec<String>>,
     pub roles: Option<Vec<Snowflake>>,
@@ -500,23 +500,12 @@ impl AllowedMentions {
 
 // ready to be extended with other components
 // non-composite here specifically means *not an action row*
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum NonCompositeComponent {
     Button(Button),
 }
 
-impl Serialize for NonCompositeComponent {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            NonCompositeComponent::Button(button) => button.serialize(serializer),
-        }
-    }
-}
-
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ActionRow {
     #[serde(rename = "type")]
     pub component_type: u8,
@@ -604,7 +593,27 @@ impl Serialize for ButtonStyles {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+impl<'de> Deserialize<'de> for ButtonStyles {
+    fn deserialize<D>(deserializer: D) -> Result<ButtonStyles, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = i32::deserialize(deserializer)?;
+        match value {
+            1 => Ok(ButtonStyles::Primary),
+            2 => Ok(ButtonStyles::Secondary),
+            3 => Ok(ButtonStyles::Success),
+            4 => Ok(ButtonStyles::Danger),
+            5 => Ok(ButtonStyles::Link),
+            other => Err(serde::de::Error::custom(format!(
+                "Invalid value for ButtonStyles: {}",
+                other
+            ))),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialEmoji {
     pub id: Snowflake,
     pub name: String,
@@ -612,7 +621,7 @@ pub struct PartialEmoji {
 }
 
 /// the button struct intended for serialized
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Button {
     #[serde(rename = "type")]
     pub component_type: i8,
@@ -937,7 +946,7 @@ impl DiscordApiCompatible for EmbedField {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attachment {
     pub filename: String,
     #[serde(skip)]

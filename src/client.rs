@@ -178,11 +178,11 @@ fn build_proxy(proxy: &str) -> Option<Proxy> {
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        ActionRow, Attachment, DiscordApiCompatible, Embed, EmbedAuthor, EmbedField, EmbedFooter,
-        Message, MessageContext, NonLinkButtonStyle,
+        ActionRow, DiscordApiCompatible, Embed, EmbedAuthor, EmbedField, EmbedFooter, Message,
+        MessageContext, NonLinkButtonStyle,
     };
 
-    use super::WebhookClient;
+    // use super::WebhookClient;
 
     fn assert_message_error<BuildFunc, MessagePred>(message_build: BuildFunc, msg_pred: MessagePred)
     where
@@ -538,5 +538,4 @@ mod tests {
         // this should not compile if Message is not Send
         test_is_send(message);
     }
-
 }
