@@ -152,6 +152,7 @@ impl MessageContext {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default)]
 pub struct Message {
     pub content: Option<String>,
     pub username: Option<String>,
