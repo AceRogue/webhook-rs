@@ -237,7 +237,77 @@ impl Message {
     }
 }
 
+fn deserialize_color_opt<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Deserializer, Visitor};
+    use std::fmt;
+
+    struct ColorOptVisitor;
+
+    impl<'de> Visitor<'de> for ColorOptVisitor {
+        type Value = Option<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or integer representing a color")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(v.to_owned()))
+        }
+
+        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(v))
+        }
+
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(v.to_string()))
+        }
+
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(v.to_string()))
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_some<D2>(self, deserializer: D2) -> Result<Self::Value, D2::Error>
+        where
+            D2: Deserializer<'de>,
+        {
+            deserializer.deserialize_any(ColorOptVisitor)
+        }
+    }
+
+    deserializer.deserialize_option(ColorOptVisitor)
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default)]
 pub struct Embed {
     pub title: Option<String>,
     #[serde(rename = "type")]
@@ -246,6 +316,7 @@ pub struct Embed {
     pub url: Option<String>,
     // ISO8601,
     pub timestamp: Option<String>,
+    #[serde(deserialize_with = "deserialize_color_opt")]
     pub color: Option<String>,
     pub footer: Option<EmbedFooter>,
     pub image: Option<EmbedImage>,
@@ -344,10 +415,11 @@ impl Embed {
     interval_member!(FIELDS_LEN_INTERVAL, usize, 0, 25);
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct EmbedField {
     pub name: String,
     pub value: String,
+    #[serde(default)]
     pub inline: bool,
 }
 
@@ -964,5 +1036,23 @@ impl Attachment {
             id: "0".to_string(), // Discord API 要求的ID
             description: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Deserialize, Debug, Clone)]
+    struct Test {
+        #[serde(deserialize_with = "deserialize_color_opt")]
+        color: Option<String>,
+    }
+
+    #[test]
+    fn test_deserialize_color_opt() {
+        let json = r#"{"color": 123456}"#;
+        let test: Test = serde_json::from_str(json).unwrap();
+        assert_eq!(test.color, Some("123456".to_string()));
     }
 }
